@@ -153,6 +153,44 @@ def test_programs():
         print(f"  ✗ Erreur: {e}")
         return False
 
+def test_open_prod() -> bool:
+    """Distingue un flux réseau fermé (pare-feu) d'une clé ou d'une base refusée."""
+    print("\nTesting Open Prod...")
+    try:
+        import requests
+        import urllib3
+        from config import OPEN_PROD_BASE_URL, OPEN_PROD_DB, OPEN_PROD_API_KEY, OPEN_PROD_VERIFY_TLS
+        from api.client import OpenProdAPIClient
+    except Exception as e:
+        print(f"  ✗ Erreur: {e}")
+        return False
+
+    if not OPEN_PROD_VERIFY_TLS:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    try:
+        requests.get(OPEN_PROD_BASE_URL, timeout=10, verify=OPEN_PROD_VERIFY_TLS)
+        print(f"  ✓ Serveur joignable en HTTPS: {OPEN_PROD_BASE_URL}")
+    except requests.RequestException as e:
+        print(f"  ✗ Serveur injoignable: {OPEN_PROD_BASE_URL}")
+        print(f"    {type(e).__name__}: {e}")
+        print("    → flux HTTPS (443) vers misrv-opp1 fermé depuis ce poste : demande à supportinfo@matferbourgeat.com")
+        return False
+
+    if not OPEN_PROD_DB or not OPEN_PROD_API_KEY or OPEN_PROD_API_KEY == 'your_id_secret_here':
+        print("  ⚠ Base ou clé API non renseignée dans .env : connexion non testée")
+        return True
+    client = OpenProdAPIClient()
+    try:
+        if client.check_connection():
+            print(f"  ✓ Connexion acceptée (base {OPEN_PROD_DB})")
+            return True
+        print(f"  ✗ Connexion refusée (base {OPEN_PROD_DB}): {client.last_error}")
+        print("    → vérifier OPEN_PROD_DB et OPEN_PROD_API_KEY dans .env")
+        return False
+    finally:
+        client.close()
+
+
 def main():
     """Exécute tous les tests."""
     print("=" * 60)
@@ -167,6 +205,7 @@ def main():
     results.append(("Serial Ports", test_serial_ports()))
     results.append(("Data Parser", test_data_parser()))
     results.append(("Programs", test_programs()))
+    results.append(("Open Prod", test_open_prod()))
 
     print("\n" + "=" * 60)
     print("Résumé des tests")
